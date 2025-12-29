@@ -10,7 +10,6 @@
            [🎨 디자인 테마]
            ========================================== */
         :root {
-            /* [기본: 다크 모드] */
             --bg-main: #121212;
             --bg-card: #1E1E1E;
             --bg-sub: #2C2C2C;
@@ -18,17 +17,15 @@
             --text-sub: #A9A9A9;
             --border-color: #2C2C2C;
             
-            /* 포인트 컬러 (올리브 그린) */
-            --point-color: #8FBC8F;       
-            --point-color-dim: #556B2F;   
-            --point-bg-tint: #2F3B2F;     
+            --point-color: #8FBC8F;        
+            --point-color-dim: #556B2F;    
+            --point-bg-tint: #2F3B2F;      
             
             --danger-color: #ff6b6b;
             --shadow-color: rgba(0,0,0,0.5);
             --link-color: #4da6ff;
             --thread-line-color: #4a4a4a;
 
-            /* [수정] 다크모드 하단바 아이콘 -> 검은색 (배경이 밝은 연두색이므로) */
             --nav-icon-color: #000000;
 
             --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -37,7 +34,6 @@
             --border-radius-btn: 9999px;
         }
 
-        /* [화이트 모드] */
         [data-theme="light"] {
             --bg-main: #F5F7F5;
             --bg-card: #FFFFFF;
@@ -54,7 +50,6 @@
             --link-color: #0066cc;
             --thread-line-color: #d0d0d0;
 
-            /* [수정] 라이트모드 하단바 아이콘 -> 흰색 (배경이 진한 쑥색이므로) */
             --nav-icon-color: #FFFFFF;
         }
 
@@ -418,6 +413,9 @@
         <h4 id="auth-title" class="auth-title">로그인</h4>
         <input type="text" id="handleInput" class="auth-input" placeholder="아이디 (영문,숫자)" style="display:none;" oninput="this.value = this.value.replace(/[^a-zA-Z0-9_]/g, '').toLowerCase()">
         <input type="text" id="nickNameInput" class="auth-input" placeholder="닉네임 (이름)" style="display:none;">
+        
+        <input type="text" id="inviteCodeInput" class="auth-input" placeholder="초대 코드 (비밀번호: 1234)" style="display:none;">
+        
         <input type="email" id="emailInput" class="auth-input" placeholder="이메일">
         <input type="password" id="pwInput" class="auth-input" placeholder="비밀번호">
         <button id="submitAuthBtn" class="full-btn btn-blue">확인</button>
@@ -470,6 +468,9 @@
             appId: "1:612531867322:web:c56e42c09d060d4a2fbc83"
         };
         // ==========================================
+        
+        // [NEW] 초대 코드 설정 (원하는 비밀번호로 바꾸세요)
+        const INVITE_CODE = "1234";
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
@@ -844,6 +845,7 @@
             let lineHtml = "";
             if (type === 'root') lineHtml = `<div class="thread-line-down" style="display:block"></div>`;
             if (type === 'main') lineHtml = `<div class="thread-line-up" style="display:block"></div>`; 
+            if (type === 'child') lineHtml = `<div class="thread-line-up" style="display:block"></div>` + (isConnectedBottom ? `<div class="thread-line-down" style="display:block"></div>` : "");
 
             return `
                 <div class="tweet ${typeClass} ${focusClass} ${connectedClass}" ${clickAction}>
@@ -876,10 +878,10 @@
             userIds.forEach(async (uid) => {
                 const u = allUsersCache[uid];
                 if (u.handle && mentionedHandles.includes(u.handle) && uid !== senderUid) {
-                    await addDoc(collection(db, "notifications"), { 
-                        toUid: uid, fromUid: senderUid, type: 'mention', 
+                    await addDoc(collection(db, "notifications"), { 
+                        toUid: uid, fromUid: senderUid, type: 'mention', 
                         tweetId: tweetId, read: false, createdAt: new Date().toISOString(),
-                        content: text 
+                        content: text 
                     });
                 }
             });
@@ -911,14 +913,14 @@
                 const docRef = await addDoc(collection(db, "tweets"), {
                     content: text, imageUrls: imageUrls, imageSize: totalSize, date: new Date().toISOString(), name: user.displayName, profilePic: user.photoURL, uid: user.uid,
                     parentId: currentReplyParentId, parentName: document.getElementById('reply-target-name').innerText.replace("@", ""),
-                    keptBy: [] 
+                    keptBy: [] 
                 });
 
                 if (user.uid !== currentReplyParentUid) {
-                    await addDoc(collection(db, "notifications"), { 
-                        toUid: currentReplyParentUid, fromUid: user.uid, type: 'reply', 
+                    await addDoc(collection(db, "notifications"), { 
+                        toUid: currentReplyParentUid, fromUid: user.uid, type: 'reply', 
                         tweetId: currentReplyParentId, read: false, createdAt: new Date().toISOString(),
-                        content: text 
+                        content: text 
                     });
                 }
                 await processMentionsAndNotify(text, docRef.id, user.uid);
@@ -947,7 +949,7 @@
                 }
                 const docRef = await addDoc(collection(db, "tweets"), {
                     content: text, imageUrls: imageUrls, imageSize: totalSize, date: new Date().toISOString(), name: user.displayName, profilePic: user.photoURL, uid: user.uid,
-                    keptBy: [] 
+                    keptBy: [] 
                 });
                 await processMentionsAndNotify(text, docRef.id, user.uid);
                 input.value = ""; removeImages();
@@ -981,42 +983,44 @@
         window.goToPage = (pageName) => {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-            if(pageName === 'main') { 
-                document.getElementById('main-page').classList.add('active'); 
-                document.querySelector('.nav-item:nth-child(1)').classList.add('active'); 
+            if(pageName === 'main') { 
+                document.getElementById('main-page').classList.add('active'); 
+                document.querySelector('.nav-item:nth-child(1)').classList.add('active'); 
             }
-            else if(pageName === 'explore') { 
-                document.getElementById('explore-page').classList.add('active'); 
-                loadAllUsersForExplore(); 
-                document.querySelector('.nav-item:nth-child(2)').classList.add('active'); 
+            else if(pageName === 'explore') { 
+                document.getElementById('explore-page').classList.add('active'); 
+                loadAllUsersForExplore(); 
+                document.querySelector('.nav-item:nth-child(2)').classList.add('active'); 
             }
-            else if(pageName === 'noti') { 
-                document.getElementById('noti-page').classList.add('active'); 
-                document.querySelector('.nav-item:nth-child(3)').classList.add('active'); 
+            else if(pageName === 'noti') { 
+                document.getElementById('noti-page').classList.add('active'); 
+                document.querySelector('.nav-item:nth-child(3)').classList.add('active'); 
             }
-            else if(pageName === 'dm') { 
-                document.getElementById('dm-page').classList.add('active'); loadAllUsers(); 
-                document.querySelector('.nav-item:nth-child(4)').classList.add('active'); 
+            else if(pageName === 'dm') { 
+                document.getElementById('dm-page').classList.add('active'); loadAllUsers(); 
+                document.querySelector('.nav-item:nth-child(4)').classList.add('active'); 
             }
             else if(pageName === 'profile') { goToMyProfile(); }
         }
         window.toggleAuth = (m) => {
-            const f = document.getElementById('auth-form'); 
+            const f = document.getElementById('auth-form'); 
             if(m === 'close') { f.style.display = 'none'; return; }
             f.style.display = 'block'; isSignupMode = (m === 'signup');
             document.getElementById('auth-title').innerText = isSignupMode ? "회원가입" : "로그인";
             document.getElementById('nickNameInput').style.display = isSignupMode ? 'block' : 'none';
             document.getElementById('handleInput').style.display = isSignupMode ? 'block' : 'none';
+            // [NEW] 초대 코드 입력창 표시/숨김
+            document.getElementById('inviteCodeInput').style.display = isSignupMode ? 'block' : 'none';
         }
         
         async function loadAllUsers() {
-            const listDiv = document.getElementById('dm-user-list'); 
-            const myUid = auth.currentUser ? auth.currentUser.uid : null; 
+            const listDiv = document.getElementById('dm-user-list'); 
+            const myUid = auth.currentUser ? auth.currentUser.uid : null; 
             if(!myUid) return; listDiv.innerHTML = "";
             const userIds = Object.keys(allUsersCache);
             for (const uid of userIds) {
-                if(uid === myUid) continue; 
-                const data = allUsersCache[uid]; 
+                if(uid === myUid) continue; 
+                const data = allUsersCache[uid]; 
                 
                 const uids = [myUid, uid].sort(); const chatId = uids[0] + "_" + uids[1];
                 let isDeleted = false;
@@ -1028,25 +1032,25 @@
                     }
                 } catch(e) {}
 
-                if(isDeleted) continue; 
+                if(isDeleted) continue; 
 
                 const img = data.photoURL ? data.photoURL : "https://via.placeholder.com/40";
-                const unreadCount = myUnreadMap[uid] || 0; 
+                const unreadCount = myUnreadMap[uid] || 0; 
                 const badgeHtml = unreadCount > 0 ? `<div class="list-badge" style="display:block">${unreadCount}</div>` : '';
                 
                 let lastMsgText = "대화 없음";
                 try { const q = query(collection(db, "chats", chatId, "messages"), orderBy("createdAt", "desc"), limit(1)); const snap = await getDocs(q); if (!snap.empty) { lastMsgText = snap.docs[0].data().text; } } catch(e) {}
-                const html = `<div class="user-list-item" onclick="openChat('${uid}', '${data.name}')"><div style="display:flex; align-items:center;"><img src="${img}" class="user-list-img"><div><div class="user-name-bold">${data.name}</div><div style="font-size:12px; color:var(--text-sub); margin-top:4px;">${lastMsgText}</div></div></div>${badgeHtml}</div>`; 
+                const html = `<div class="user-list-item" onclick="openChat('${uid}', '${data.name}')"><div style="display:flex; align-items:center;"><img src="${img}" class="user-list-img"><div><div class="user-name-bold">${data.name}</div><div style="font-size:12px; color:var(--text-sub); margin-top:4px;">${lastMsgText}</div></div></div>${badgeHtml}</div>`; 
                 listDiv.insertAdjacentHTML('beforeend', html);
             }
         }
 
         async function loadAllUsersForExplore() {
-            const listDiv = document.getElementById('explore-user-list'); 
+            const listDiv = document.getElementById('explore-user-list'); 
             listDiv.innerHTML = "";
             const userIds = Object.keys(allUsersCache);
             userIds.forEach(uid => {
-                const data = allUsersCache[uid]; 
+                const data = allUsersCache[uid]; 
                 const img = data.photoURL ? data.photoURL : "https://via.placeholder.com/40";
                 const handle = data.handle ? "@" + data.handle : "";
                 const html = `
@@ -1058,21 +1062,21 @@
                                 <div style="font-size:12px; color:var(--text-sub);">${handle}</div>
                             </div>
                         </div>
-                    </div>`; 
+                    </div>`; 
                 listDiv.insertAdjacentHTML('beforeend', html);
             });
         }
-
-        window.openChat = async (targetUid, targetName) => { 
-            const myUid = auth.currentUser.uid; currentTargetUid = targetUid; 
-            const uids = [myUid, targetUid].sort(); currentChatId = uids[0] + "_" + uids[1]; 
+        
+        window.openChat = async (targetUid, targetName) => { 
+            const myUid = auth.currentUser.uid; currentTargetUid = targetUid; 
+            const uids = [myUid, targetUid].sort(); currentChatId = uids[0] + "_" + uids[1]; 
             const chatDocRef = doc(db, "chats", currentChatId);
             const chatDoc = await getDoc(chatDocRef);
             if(chatDoc.exists()) { const cData = chatDoc.data(); if(cData.deletedBy && cData.deletedBy.includes(myUid)) {} }
-            document.getElementById('chatTargetName').innerText = targetName; 
-            document.getElementById('chat-room').style.display = 'flex'; 
-            if (myUnreadMap[targetUid] > 0) { await updateDoc(doc(db, "users", myUid), { [`unread.${targetUid}`]: 0 }); } 
-            loadMessages(currentChatId); 
+            document.getElementById('chatTargetName').innerText = targetName; 
+            document.getElementById('chat-room').style.display = 'flex'; 
+            if (myUnreadMap[targetUid] > 0) { await updateDoc(doc(db, "users", myUid), { [`unread.${targetUid}`]: 0 }); } 
+            loadMessages(currentChatId); 
         }
         
         window.leaveChat = async () => {
@@ -1082,21 +1086,21 @@
                 const chatDocRef = doc(db, "chats", currentChatId);
                 const chatDoc = await getDoc(chatDocRef);
                 if (!chatDoc.exists()) { await setDoc(chatDocRef, { deletedBy: [myUid] }); } else { await updateDoc(chatDocRef, { deletedBy: arrayUnion(myUid) }); }
-                closeChat(); loadAllUsers(); 
+                closeChat(); loadAllUsers(); 
             } catch(e) { console.error(e); }
         }
 
         window.closeChat = () => { document.getElementById('chat-room').style.display = 'none'; if(unsubscribeChat) unsubscribeChat(); }
         function loadMessages(chatId) { const msgBox = document.getElementById('chat-messages'); msgBox.innerHTML = ""; const q = query(collection(db, "chats", chatId, "messages"), orderBy("createdAt", "asc")); unsubscribeChat = onSnapshot(q, (snapshot) => { msgBox.innerHTML = ""; const myUid = auth.currentUser.uid; snapshot.forEach(doc => { const data = doc.data(); const isMine = data.uid === myUid; const typeClass = isMine ? 'msg-mine' : 'msg-other'; const time = new Date(data.createdAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); const html = `<div class="message-bubble ${typeClass}">${data.text}<div class="msg-time">${time}</div></div>`; msgBox.insertAdjacentHTML('beforeend', html); }); msgBox.scrollTop = msgBox.scrollHeight; }); }
-        window.sendMsg = async () => { 
-            const input = document.getElementById('chatInput'); const text = input.value; if(!text) return; const myUid = auth.currentUser.uid; 
-            try { 
-                await addDoc(collection(db, "chats", currentChatId, "messages"), { text: text, uid: myUid, createdAt: new Date().toISOString() }); 
+        window.sendMsg = async () => { 
+            const input = document.getElementById('chatInput'); const text = input.value; if(!text) return; const myUid = auth.currentUser.uid; 
+            try { 
+                await addDoc(collection(db, "chats", currentChatId, "messages"), { text: text, uid: myUid, createdAt: new Date().toISOString() }); 
                 const chatDocRef = doc(db, "chats", currentChatId);
-                await setDoc(chatDocRef, { deletedBy: [] }, { merge: true }); 
-                await updateDoc(doc(db, "users", currentTargetUid), { [`unread.${myUid}`]: increment(1) }); 
-                input.value = ""; 
-            } catch(e) {} 
+                await setDoc(chatDocRef, { deletedBy: [] }, { merge: true }); 
+                await updateDoc(doc(db, "users", currentTargetUid), { [`unread.${myUid}`]: increment(1) }); 
+                input.value = ""; 
+            } catch(e) {} 
         }
         
         window.goToUserProfile = (targetUid) => {
@@ -1123,112 +1127,58 @@
                 document.getElementById('editLinkInput').value = user.website || "";
             }
 
-            switchTab('tweets'); 
+            switchTab('tweets'); 
         }
 
         window.toggleEditProfile = () => { const f = document.getElementById('edit-profile-form'); f.style.display = f.style.display === 'none' ? 'block' : 'none'; }
         window.handleProfileFileSelect = (input) => { if (input.files && input.files[0]) { selectedProfileFile = input.files[0]; const reader = new FileReader(); reader.onload = (e) => document.getElementById('editProfilePreview').src = e.target.result; reader.readAsDataURL(selectedProfileFile); } }
-        window.saveProfile = async () => { 
-            const bio = document.getElementById('editBioInput').value; 
-            const link = document.getElementById('editLinkInput').value; 
-            const user = auth.currentUser; const btn = document.getElementById('saveProfileBtn'); btn.innerText = "..."; btn.disabled = true; 
-            try { 
+        window.saveProfile = async () => { 
+            const bio = document.getElementById('editBioInput').value; 
+            const link = document.getElementById('editLinkInput').value; 
+            const user = auth.currentUser; const btn = document.getElementById('saveProfileBtn'); btn.innerText = "..."; btn.disabled = true; 
+            try { 
                 let updateData = { bio: bio, website: link };
-                if (selectedProfileFile) { 
-                    const snap = await uploadBytes(ref(storage, 'profiles/' + user.uid), selectedProfileFile); 
-                    const url = await getDownloadURL(snap.ref); 
-                    await updateProfile(user, { photoURL: url }); 
+                if (selectedProfileFile) { 
+                    const snap = await uploadBytes(ref(storage, 'profiles/' + user.uid), selectedProfileFile); 
+                    const url = await getDownloadURL(snap.ref); 
+                    await updateProfile(user, { photoURL: url }); 
                     updateData.photoURL = url;
-                    document.getElementById('profilePageImg').src = url; 
-                    document.getElementById('myProfileSmall').src = url; 
-                } 
-                await updateDoc(doc(db, "users", user.uid), updateData); 
+                    document.getElementById('profilePageImg').src = url; 
+                    document.getElementById('myProfileSmall').src = url; 
+                } 
+                await updateDoc(doc(db, "users", user.uid), updateData); 
                 document.getElementById('profilePageBio').innerText = bio;
                 const linkDiv = document.getElementById('profilePageLink');
                 if(link) { linkDiv.innerHTML = `<a href="${link}" target="_blank" class="link-text">🔗 ${link}</a>`; } else { linkDiv.innerHTML = ""; }
-                alert("완료!"); toggleEditProfile(); 
-            } catch (e) { alert("실패"); } finally { btn.innerText = "저장하기"; btn.disabled = false; } 
+                alert("완료!"); toggleEditProfile(); 
+            } catch (e) { alert("실패"); } finally { btn.innerText = "저장하기"; btn.disabled = false; } 
         }
 
-        window.switchTab = (tab) => {
-            const items = document.querySelectorAll('.tab-item');
-            const tweetList = document.getElementById('my-tweet-list');
-            const mediaGrid = document.getElementById('my-media-grid');
-            const keepList = document.getElementById('my-keep-list');
-            
-            items.forEach(i => i.classList.remove('active'));
-            tweetList.style.display = 'none'; mediaGrid.style.display = 'none'; keepList.style.display = 'none';
-
-            if(tab === 'tweets') {
-                items[0].classList.add('active'); tweetList.style.display = 'block';
-                loadProfileContent(currentProfileUid, 'tweets');
-            } else if(tab === 'media') {
-                items[1].classList.add('active'); mediaGrid.style.display = 'grid';
-                loadProfileContent(currentProfileUid, 'media');
-            } else if(tab === 'keeps') {
-                items[2].classList.add('active'); keepList.style.display = 'block';
-                loadProfileContent(currentProfileUid, 'keeps');
-            }
-        }
-
-        function loadProfileContent(uid, type) {
-            const tweetList = document.getElementById('my-tweet-list');
-            const mediaGrid = document.getElementById('my-media-grid');
-            const keepList = document.getElementById('my-keep-list');
-            
-            let q;
-            if (type === 'keeps') {
-                q = query(collection(db, "tweets"), where("keptBy", "array-contains", uid), orderBy("date", "desc"));
-            } else {
-                q = query(collection(db, "tweets"), where("uid", "==", uid), orderBy("date", "desc"));
-            }
-
-            onSnapshot(q, (s) => {
-                if (type === 'tweets') {
-                    tweetList.innerHTML = "";
-                    document.getElementById('myTweetCount').innerText = s.size;
-                    s.forEach((doc) => {
-                        const data = doc.data();
-                        tweetList.insertAdjacentHTML('beforeend', createTweetHTML(data, doc.id, true, false));
-                    });
-                } else if (type === 'media') {
-                    mediaGrid.innerHTML = "";
-                    let mCount = 0;
-                    s.forEach((doc) => {
-                        const data = doc.data();
-                        if(data.imageUrls) { data.imageUrls.forEach(u => { mCount++; mediaGrid.insertAdjacentHTML('beforeend', `<img src="${u}" class="media-item" onclick="openImageModal(['${u}'],0)">`); }); } 
-                        else if(data.imageUrl) { mCount++; mediaGrid.insertAdjacentHTML('beforeend', `<img src="${data.imageUrl}" class="media-item" onclick="openImageModal(['${data.imageUrl}'],0)">`); }
-                    });
-                    document.getElementById('myMediaCount').innerText = mCount;
-                } else if (type === 'keeps') {
-                    keepList.innerHTML = "";
-                    s.forEach((doc) => {
-                        const data = doc.data();
-                        keepList.insertAdjacentHTML('beforeend', createTweetHTML(data, doc.id, false, false));
-                    });
-                }
-            });
-        }
-        
         document.getElementById('submitAuthBtn').addEventListener('click', async () => {
             const e = document.getElementById('emailInput').value; const p = document.getElementById('pwInput').value; const n = document.getElementById('nickNameInput').value;
             const h = document.getElementById('handleInput').value;
-            try { 
-                if (isSignupMode) { 
+            const code = document.getElementById('inviteCodeInput').value; // [NEW] 입력된 초대코드
+
+            try { 
+                if (isSignupMode) { 
                     if(!h) return alert("아이디를 입력해주세요.");
+                    // [NEW] 초대 코드 검사 로직
+                    if(code !== "1234") return alert("초대 코드가 일치하지 않습니다.");
+
                     const q = query(collection(db, "users"), where("handle", "==", h));
                     const snapshot = await getDocs(q);
                     if(!snapshot.empty) return alert("이미 존재하는 아이디입니다.");
 
-                    const r = await createUserWithEmailAndPassword(auth, e, p); 
+                    const r = await createUserWithEmailAndPassword(auth, e, p); 
                     await updateProfile(r.user, { displayName: n });
+                    // [수정] 관리자 승인 없이 바로 통과 (isApproved: true 제거해도 됨, 어차피 체크 안 하니까)
                     await setDoc(doc(db, "users", r.user.uid), { email: e, name: n, handle: h, photoURL: null, usedStorage: 0, bio: "", unread: {}, website: "" });
-                    alert("가입완료"); 
-                } else { 
-                    await signInWithEmailAndPassword(auth, e, p); 
-                    alert("로그인완료"); 
-                } 
-                document.getElementById('auth-form').style.display = 'none'; 
+                    alert("가입완료"); 
+                } else { 
+                    await signInWithEmailAndPassword(auth, e, p); 
+                    alert("로그인완료"); 
+                } 
+                document.getElementById('auth-form').style.display = 'none'; 
             } catch (er) { alert("에러: " + er.message); }
         });
     </script>
